@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -e
+set -u
 
 Usage () { cat >&2 <<EOF
 Usage: $0 <configuration_file>
@@ -64,23 +65,37 @@ Error () {
 }
 
 backup_simple_git () {
-  :
+  Error TODO
 }
 
 backup_gitlab_project () {
-  :
+  backup_gitXXb_repository
 }
 
 backup_gitlab_owner () {
-  :
+  Error TODO
 }
 
 backup_github_repository () {
-  :
+  backup_gitXXb_repository
 }
 
 backup_github_owner () {
-  :
+  Error TODO
+}
+
+backup_gitXXb_repository () {
+  local local_dir=${url}.git
+  local rewritten_url=git@${url/\//:}.git
+  backup_git_repository
+}
+
+backup_git_repository () {
+  if ! [ -d "$local_dir" ] ; then
+    git clone --quiet --mirror "$rewritten_url" "$local_dir"
+  else
+    GIT_DIR="$local_dir" git remote update >/dev/null
+  fi
 }
 
 Main
