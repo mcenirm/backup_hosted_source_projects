@@ -73,7 +73,8 @@ backup_gitlab_project () {
 }
 
 backup_gitlab_owner () {
-  Error TODO
+  local owner=${url%*/}
+  local group_id=$( gitlab_get_group_id "$owner" )
 }
 
 backup_github_repository () {
@@ -96,6 +97,19 @@ backup_git_repository () {
   else
     GIT_DIR="$local_dir" git remote update >/dev/null
   fi
+}
+
+gitlab_get_group_id () {
+  local group=$1
+  gitlab_api --only id GET "/groups?search=${group}"
+}
+
+gitlab_api () {
+  Error TODO
+}
+
+percent_encode () {
+  Error TODO
 }
 
 Main
