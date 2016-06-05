@@ -1,115 +1,101 @@
-#!/bin/bash
+#!/usr/bin/env python
+from __future__ import print_function
+import os
+import subprocess
+import sys
 
-set -e
-set -u
 
-Usage () { cat >&2 <<EOF
-Usage: $0 <configuration_file>
-Backup the hosted source projects listed in <configuration_file>
-EOF
-}
+def usage():
+    print('Usage: ' + __name__ + ' <configuration_file>\n'
+          'Backup the hosted source projects listed in <configuration_file>',
+          file=sys.stderr)
 
-if [ $# -ne 1 ] ; then
-  Usage
-  exit 1
-fi
 
-configuration_file=$1
+def main(configuration_file):
+    with open(configuration_file, 'r') as f:
+        configuration = f.readlines()
+    for line_no in range(1, len(configuration)+1):
+        url = configuration[line_no-1].strip()
+        parts = url.split('/')
+        if url.startswith('#') or url == '':
+            # Skip comment and blank lines
+            continue
+        elif url.endswith('.git'):
+            # Handle simple git repositories
+            backup_simple_git(url)
+        elif url.startswith('gitlab.com/'):
+            if len(parts) > 3:
+                error('Too many path parts at line '+str(line_no)+': '+url)
+                return 2
+            elif len(parts) == 3:
+                # Handle gitlab-hosted projects
+                backup_gitlab_project(owner=parts[1], project=parts[2])
+            elif len(parts) == 2:
+                # Handle gitlab-hosted users and groups
+                backup_gitlab_owner(owner=parts[1])
+            else:
+                error('Too few path parts at line '+str(line_no)+': '+url)
+                return 2
+        elif url.startswith('github.com/'):
+            if len(parts) > 3:
+                error('Too many path parts at line '+str(line_no)+': '+url)
+                return 2
+            elif len(parts) == 3:
+                # Handle github-hosted repositories
+                backup_github_repository(owner=parts[1], repository=parts[2])
+            elif len(parts) == 2:
+                # Handle github-hosted users and organizations
+                backup_github_owner(owner=parts[1])
+            else:
+                error('Too few path parts at line '+str(line_no)+': '+url)
+                return 2
+        else:
+            # Unable to handle anything else
+            error('Unrecognized item type at line '+str(line_no)+': '+url)
+            return 2
 
-Main () {
-  cat -n -- "$configuration_file" | while read -r line_no url ; do
-    case "$url" in
-      \#*|'')
-        # Skip comment and blank lines
-        continue
-        ;;
-      *.git)
-        # Handle simple git repositories
-        backup_simple_git
-        ;;
-      gitlab.com/*/*/*)
-        Error "Too many parts to gitlab path at line ${line_no}: $url"
-        exit 2
-        ;;
-      gitlab.com/*/*)
-        # Handle gitlab-hosted projects
-        backup_gitlab_project
-        ;;
-      gitlab.com/*)
-        # Handle gitlab-hosted users and groups
-        backup_gitlab_owner
-        ;;
-      github.com/*/*/*)
-        Error "Too many parts to github path at line ${line_no}: $url"
-        exit 2
-        ;;
-      github.com/*/*)
-        # Handle github-hosted repositories
-        backup_github_repository
-        ;;
-      github.com/*)
-        # Handle github-hosted users and organizations
-        backup_github_owner
-        ;;
-      *)
-        # Unable to handle anything else
-        Error "Unrecognized item type at line ${line_no}: $url"
-        exit 2
-        ;;
-    esac
-  done
-}
 
-Error () {
-  echo >&2 "$@"
-}
+def error(msg):
+    print(msg, file=sys.stderr)
 
-backup_simple_git () {
-  Error TODO
-}
 
-backup_gitlab_project () {
-  backup_gitXXb_repository
-}
+def backup_simple_git(url):
+    error('TODO')
 
-backup_gitlab_owner () {
-  local owner=${url%*/}
-  local group_id=$( gitlab_get_group_id "$owner" )
-}
 
-backup_github_repository () {
-  backup_gitXXb_repository
-}
+def backup_gitlab_project(owner, project):
+    backup_gitXXb_repository('gitlab.com', owner, project)
 
-backup_github_owner () {
-  Error TODO
-}
 
-backup_gitXXb_repository () {
-  local local_dir=${url}.git
-  local rewritten_url=git@${url/\//:}.git
-  backup_git_repository
-}
+def backup_gitlab_owner(owner):
+    error('TODO')
 
-backup_git_repository () {
-  if ! [ -d "$local_dir" ] ; then
-    git clone --quiet --mirror "$rewritten_url" "$local_dir"
-  else
-    GIT_DIR="$local_dir" git remote update >/dev/null
-  fi
-}
 
-gitlab_get_group_id () {
-  local group=$1
-  gitlab_api --only id GET "/groups?search=${group}"
-}
+def backup_github_repository(owner, repository):
+    backup_gitXXb_repository('github.com', owner, repository)
 
-gitlab_api () {
-  Error TODO
-}
 
-percent_encode () {
-  Error TODO
-}
+def backup_github_owner(owner):
+    error('TODO')
 
-Main
+
+def backup_gitXXb_repository(service, owner, repository):
+    local_dir = os.path.join(service, owner, repository+'.git')
+    rewritten_url = 'git@'+service+':'+owner+'/'+repository+'.git'
+    backup_git_repository(local_dir, url=rewritten_url)
+
+
+def backup_git_repository(local_dir, url):
+    if not os.path.isdir(local_dir):
+        cmd = ['git', 'clone', '--quiet', '--mirror', url, local_dir]
+    else:
+        cmd = ['git', '--git-dir='+local_dir, 'remote', 'update']
+    subprocess.check_call(cmd)
+
+
+if __name__ == '__main__':
+    if len(sys.argv) != 2:
+        usage
+        sys.exit(1)
+    rc = main(sys.argv[1])
+    sys.exit(rc)
