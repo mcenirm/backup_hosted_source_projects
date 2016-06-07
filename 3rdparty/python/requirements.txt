@@ -1,3 +1,2 @@
-gitpython==2.0.5
 pygithub3==0.5.1
 python-gitlab==0.13
