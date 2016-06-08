@@ -6,3 +6,11 @@ python_binary(
     ],
     source='backup_hosted_source_projects.py',
 )
+
+python_tests(
+    name='test',
+    sources=globs('test_*.py'),
+    dependencies=[
+        ':backup_hosted_source_projects',
+    ],
+)

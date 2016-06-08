@@ -1,8 +1,11 @@
 #!/usr/bin/env python
 from __future__ import print_function
+import logging
 import os
 import subprocess
 import sys
+
+import gitlab
 
 
 def usage():
@@ -12,6 +15,8 @@ def usage():
 
 
 def main(configuration_file):
+    backup_gitlab = None
+
     with open(configuration_file, 'r') as f:
         configuration = f.readlines()
     for line_no in range(1, len(configuration)+1):
@@ -27,15 +32,17 @@ def main(configuration_file):
             if len(parts) > 3:
                 error('Too many path parts at line '+str(line_no)+': '+url)
                 return 2
-            elif len(parts) == 3:
-                # Handle gitlab-hosted projects
-                backup_gitlab_project(owner=parts[1], project=parts[2])
-            elif len(parts) == 2:
-                # Handle gitlab-hosted users and groups
-                backup_gitlab_owner(owner=parts[1])
-            else:
+            if len(parts) < 2:
                 error('Too few path parts at line '+str(line_no)+': '+url)
                 return 2
+
+            if backup_gitlab is None:
+                backup_gitlab = BackupGitlab()
+
+            owner_name = parts[1]
+            project_name = parts[2] if len(parts) > 2 else None
+            backup_gitlab.backup(owner_name, project_name)
+
         elif url.startswith('github.com/'):
             if len(parts) > 3:
                 error('Too many path parts at line '+str(line_no)+': '+url)
@@ -63,14 +70,6 @@ def backup_simple_git(url):
     error('TODO')
 
 
-def backup_gitlab_project(owner, project):
-    backup_gitXXb_repository('gitlab.com', owner, project)
-
-
-def backup_gitlab_owner(owner):
-    error('TODO')
-
-
 def backup_github_repository(owner, repository):
     backup_gitXXb_repository('github.com', owner, repository)
 
@@ -86,16 +85,53 @@ def backup_gitXXb_repository(service, owner, repository):
 
 
 def backup_git_repository(local_dir, url):
+    logger = logging.getLogger(__name__)
+    logger.debug('backup_git_repository: local_dir=%s url=%s', local_dir, url)
     if not os.path.isdir(local_dir):
         cmd = ['git', 'clone', '--quiet', '--mirror', url, local_dir]
     else:
         cmd = ['git', '--git-dir='+local_dir, 'remote', 'update']
+    logger.debug('                     : cmd=%s', repr(cmd))
     subprocess.check_call(cmd)
+
+
+class BackupGitlab():
+    def __init__(self):
+        self.gitlab = gitlab.Gitlab.from_config()
+        self.gitlab.auth()
+        self.name = 'gitlab.com'
+        self.logger = logging.getLogger(__name__)
+
+    def backup(self, owner_name, project_name=None):
+        self.logger.debug('backup: owner=%s project=%s', owner_name, project_name)
+        if project_name is None:
+            group = self.gitlab.groups.get(owner_name)
+            self.backup_group(group)
+        else:
+            project_path = u'{}/{}'.format(owner_name, project_name)
+            project = self.gitlab.projects.get(project_path)
+            self.backup_project(project)
+
+    def backup_group(self, group):
+        for project in group.projects:
+            self.backup_project(project)
+
+    def backup_project(self, project):
+        owner_path = project.namespace.path
+        local_dir = os.path.join(self.name, owner_path, project.path+'.git')
+        backup_git_repository(local_dir, project.ssh_url_to_repo)
+
+
+def setup_logging(config_file='logging.ini'):
+    if os.path.isfile(config_file):
+        import logging.config
+        logging.config.fileConfig(config_file)
 
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         usage
         sys.exit(1)
+    setup_logging()
     rc = main(sys.argv[1])
     sys.exit(rc)
