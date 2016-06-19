@@ -51,3 +51,11 @@ Change to the directory that will hold the backups.
 Run `backup_hosted_source_projects` specifying the configuration file.
 
     backup_hosted_source_projects ../example.txt
+
+
+# Build as a PEX file
+
+Inside a virtualenv:
+
+    pip install pex
+    python setup.py bdist_pex
