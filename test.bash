@@ -4,4 +4,4 @@ set -e
 
 cd "$( dirname "$0" )/example"
 
-../dist/backup_hosted_source_projects.pex ../example.txt
+../dist/backup_hosted_source_projects ../example.txt

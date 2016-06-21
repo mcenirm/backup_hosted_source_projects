@@ -5,20 +5,23 @@ import os
 import subprocess
 import sys
 
-import gitlab
-
 
 def usage():
-    print('Usage: ' + __name__ + ' <configuration_file>\n'
+    print('Usage: backup_hosted_source_projects <configuration_file>\n'
           'Backup the hosted source projects listed in <configuration_file>',
           file=sys.stderr)
 
 
-def main(configuration_file):
+def main():
+    if len(sys.argv) != 2:
+        usage()
+        sys.exit(1)
+
     backup_gitlab = None
 
-    with open(configuration_file, 'r') as f:
+    with open(sys.argv[1], 'r') as f:
         configuration = f.readlines()
+
     for line_no in range(1, len(configuration)+1):
         url = configuration[line_no-1].strip()
         parts = url.split('/')
@@ -31,10 +34,10 @@ def main(configuration_file):
         elif url.startswith('gitlab.com/'):
             if len(parts) > 3:
                 error('Too many path parts at line '+str(line_no)+': '+url)
-                return 2
+                sys.exit(2)
             if len(parts) < 2:
                 error('Too few path parts at line '+str(line_no)+': '+url)
-                return 2
+                sys.exit(2)
 
             if backup_gitlab is None:
                 backup_gitlab = BackupGitlab()
@@ -46,7 +49,7 @@ def main(configuration_file):
         elif url.startswith('github.com/'):
             if len(parts) > 3:
                 error('Too many path parts at line '+str(line_no)+': '+url)
-                return 2
+                sys.exit(2)
             elif len(parts) == 3:
                 # Handle github-hosted repositories
                 backup_github_repository(owner=parts[1], repository=parts[2])
@@ -55,11 +58,11 @@ def main(configuration_file):
                 backup_github_owner(owner=parts[1])
             else:
                 error('Too few path parts at line '+str(line_no)+': '+url)
-                return 2
+                sys.exit(2)
         else:
             # Unable to handle anything else
             error('Unrecognized item type at line '+str(line_no)+': '+url)
-            return 2
+            sys.exit(2)
 
 
 def error(msg):
@@ -97,6 +100,7 @@ def backup_git_repository(local_dir, url):
 
 class BackupGitlab():
     def __init__(self):
+        import gitlab
         self.gitlab = gitlab.Gitlab.from_config()
         self.gitlab.auth()
         self.name = 'gitlab.com'
@@ -129,9 +133,5 @@ def setup_logging(config_file='logging.ini'):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        usage
-        sys.exit(1)
     setup_logging()
-    rc = main(sys.argv[1])
-    sys.exit(rc)
+    main()
